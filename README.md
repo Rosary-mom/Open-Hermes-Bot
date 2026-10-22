@@ -155,6 +155,17 @@ gh release create v1.0.0 \
   --notes "First release."
 ```
 
+## Windows
+
+Local mode ("This computer") works on Windows when Hermes runs natively there:
+
+- Install [Git for Windows](https://git-scm.com/download/win); the app runs its host commands through Git Bash (override the path with `HERMES_BOT_BASH`).
+- The Hermes home is taken from `HERMES_HOME`, else `%LOCALAPPDATA%\hermes`, else `%USERPROFILE%\.hermes`. Python is the Hermes venv (`hermes-agent\venv\Scripts\python.exe`), else `python`.
+- The API key is read from `API_SERVER_KEY` in that home's `.env` and stored encrypted with Electron safeStorage (DPAPI) in the app's data folder instead of the macOS Keychain.
+- Run from source with `npm ci && npm start`; build an installer and a portable exe with `npm run dist:win` (output in `release/`).
+
+Voice dictation in local mode still expects the macOS Hermes layout and may not work on Windows yet.
+
 ## Structure
 
 ```

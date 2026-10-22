@@ -1,3 +1,4 @@
+import { IS_WINDOWS, MACHINE } from './platform';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { HermesConnectionMode, HermesStatus } from './hermes';
 import { AgentAvatar } from './components/AgentAvatar';
@@ -406,7 +407,7 @@ export function Onboarding({ onFinish, onDismiss }: OnboardingProps) {
         setApiKey('');
         setNotice(
           at === 'local'
-            ? 'Read from this Mac, and kept in the Keychain.'
+            ? IS_WINDOWS ? 'Read from this computer, and kept encrypted for this Windows user.' : 'Read from this Mac, and kept in the Keychain.'
             : `Read from ${where}, and kept in the Keychain.`,
         );
         return true;
@@ -624,7 +625,7 @@ export function Onboarding({ onFinish, onDismiss }: OnboardingProps) {
         ? mode === 'local'
           ? failed
             ? 'Scan again'
-            : 'Scan this Mac'
+            : `Scan this ${MACHINE}`
           : 'Test the connection'
         : step === 'colour' && !madeBot
           ? 'Make the bot'
@@ -756,7 +757,7 @@ export function Onboarding({ onFinish, onDismiss }: OnboardingProps) {
                     }}
                   />
                   <span className="onboarding-mode-copy">
-                    <strong>This Mac</strong>
+                    <strong>This {MACHINE}</strong>
                     <em>Hermes runs on this machine. No tunnel, no SSH.</em>
                   </span>
                 </label>
@@ -1046,7 +1047,7 @@ export function Onboarding({ onFinish, onDismiss }: OnboardingProps) {
             <ul className="onboarding-facts">
               <li>
                 <span>Hermes runs</span>
-                <strong>{mode === 'local' ? 'on this Mac' : `on ${host}`}</strong>
+                <strong>{mode === 'local' ? `on this ${MACHINE}` : `on ${host}`}</strong>
               </li>
               <li>
                 <span>Key</span>

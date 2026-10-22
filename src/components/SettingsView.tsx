@@ -1,3 +1,4 @@
+import { MACHINE } from '../platform';
 import { useEffect, useState } from 'react';
 import type {
   HermesConnectionMode,
@@ -212,7 +213,7 @@ export function SettingsView({
         .importKey({ mode: at })
         .catch((reason: Error) => ({ ok: false, error: reason.message }));
       if (!imported.ok) {
-        setError(imported.error ?? 'Could not read the key from this Mac');
+        setError(imported.error ?? `Could not read the key from this ${MACHINE}`);
         setBusy(null);
         return;
       }
@@ -487,7 +488,7 @@ export function SettingsView({
                         }}
                       />
                       <span className="settings-mode-copy">
-                        <strong>This Mac</strong>
+                        <strong>This {MACHINE}</strong>
                         <em>Hermes runs on this machine. No tunnel, no SSH.</em>
                       </span>
                     </label>
