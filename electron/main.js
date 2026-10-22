@@ -1324,7 +1324,8 @@ ipcMain.handle('hermes:session:delete', async (_event, payload) => {
 // stop serving it, and the profile goes.
 const DELETE_BOT_SCRIPT = `set -u
 
-ROOT="$HOME/.hermes"
+# HERMES_HOME wins (Windows: %LOCALAPPDATA%\\hermes); macOS keeps ~/.hermes.
+ROOT="\${HERMES_HOME:-$HOME/.hermes}"
 NAME="$1"
 P="$ROOT/profiles/$NAME"
 
@@ -2173,7 +2174,8 @@ print(json.dumps({"title": now_title, "color": now_color}, separators=(",", ":")
 // through another profile's env).
 const CREATE_BOT_SCRIPT = `set -u
 
-ROOT="$HOME/.hermes"
+# HERMES_HOME wins (Windows: %LOCALAPPDATA%\\hermes); macOS keeps ~/.hermes.
+ROOT="\${HERMES_HOME:-$HOME/.hermes}"
 NAME="$1"
 TITLE="$2"
 DESC="$3"
