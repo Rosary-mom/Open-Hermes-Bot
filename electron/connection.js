@@ -82,7 +82,7 @@ function apiUrl(baseUrl, profile, pathname) {
  * they chose, or the one they are on.
  */
 function connectionLabel(mode, sshHost) {
-  if (mode === LOCAL) return 'This Mac';
+  if (mode === LOCAL) return process.platform === 'win32' ? 'This computer' : 'This Mac';
   return String(sshHost ?? '').trim();
 }
 

@@ -9,6 +9,7 @@ const {
   Menu,
   shell,
   ipcMain,
+  safeStorage,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -16,6 +17,9 @@ const os = require('node:os');
 const { spawn, spawnSync, execFileSync } = require('node:child_process');
 const { autoUpdater } = require('electron-updater');
 const { createUpdater } = require('./updater');
+const { winLocalScript, findGitBash, hermesHomeWin, hermesPythonWin } = require('./windows.js');
+
+const IS_WIN = process.platform === 'win32';
 const {
   apiBaseUrl,
   apiUrl,
@@ -146,9 +150,42 @@ function security(args) {
   }
 }
 
+// On Windows there is no `security` tool: the key is encrypted with
+// Electron's safeStorage (DPAPI, bound to this Windows user) and kept in the
+// app's own data folder.
+function winSecretPath() {
+  return path.join(app.getPath('userData'), 'hermes-api-key.bin');
+}
+
+function writeWinSecret(secret) {
+  try {
+    fs.mkdirSync(path.dirname(winSecretPath()), { recursive: true });
+    const data = safeStorage.isEncryptionAvailable()
+      ? Buffer.concat([Buffer.from('E1'), safeStorage.encryptString(secret)])
+      : Buffer.from('P1' + secret, 'utf8');
+    fs.writeFileSync(winSecretPath(), data, { mode: 0o600 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function readWinSecret() {
+  try {
+    const data = fs.readFileSync(winSecretPath());
+    const tag = data.subarray(0, 2).toString();
+    if (tag === 'E1') return safeStorage.decryptString(data.subarray(2)).trim();
+    if (tag === 'P1') return data.subarray(2).toString('utf8').trim();
+  } catch {
+    /* nothing stored */
+  }
+  return '';
+}
+
 function storeSecret(value) {
   const secret = String(value ?? '').trim();
   if (!secret) return false;
+  if (IS_WIN) return writeWinSecret(secret);
   try {
     execFileSync(
       '/usr/bin/security',
@@ -171,6 +208,7 @@ function storeSecret(value) {
 }
 
 function readSecret() {
+  if (IS_WIN) return readWinSecret();
   return security([
     'find-generic-password',
     '-a',
@@ -182,6 +220,10 @@ function readSecret() {
 }
 
 function clearSecret() {
+  if (IS_WIN) {
+    try { fs.unlinkSync(winSecretPath()); } catch { /* none stored */ }
+    return;
+  }
   security([
     'delete-generic-password',
     '-a',
@@ -453,7 +495,7 @@ function statusFromProbe(probe, connection) {
 // with is short, and the tools Hermes' own scripts need — python3, openssl —
 // live in the places a person installs them. The usual ones are added back,
 // so a command run here finds what it expects.
-const LOCAL_PATH = [
+const LOCAL_PATH = IS_WIN ? process.env.PATH || '' : [
   process.env.PATH || '',
   '/opt/homebrew/bin',
   '/usr/local/bin',
@@ -469,7 +511,7 @@ function runProcess(command, args, timeoutMs, input, timeoutMessage) {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       stdio: [input ? 'pipe' : 'ignore', 'pipe', 'pipe'],
-      env: { ...process.env, PATH: LOCAL_PATH },
+      env: IS_WIN ? { ...process.env } : { ...process.env, PATH: LOCAL_PATH },
     });
     let stdout = '';
     let stderr = '';
@@ -524,6 +566,26 @@ function runSsh(host, command, timeoutMs = 20000, input) {
 // The same command, on this machine. The scripts are the same, the paths are
 // the same: a Hermes that runs here keeps its home in the same place.
 function runLocalCommand(command, timeoutMs = 20000, input) {
+  if (IS_WIN) {
+    // Windows: the same bash snippets run through Git Bash, with the Hermes
+    // home (HERMES_HOME or %LOCALAPPDATA%\\hermes) standing in for ~/.hermes
+    // and the Hermes venv python standing in for python3.
+    const bash = findGitBash();
+    if (!bash) {
+      return Promise.resolve({
+        ok: false,
+        error: 'Git Bash not found — install Git for Windows (git-scm.com).',
+      });
+    }
+    const home = hermesHomeWin();
+    return runProcess(
+      bash,
+      ['-c', winLocalScript(command, home, hermesPythonWin(home))],
+      timeoutMs,
+      input,
+      'Command timed out',
+    );
+  }
   return runProcess(
     '/bin/bash',
     ['-c', command],
@@ -647,7 +709,7 @@ ipcMain.handle('hermes:key:import', async (_event, payload) => {
       error:
         result.error ||
         stderrOf(result) ||
-        'API_SERVER_KEY not found in ~/.hermes/.env',
+        'API_SERVER_KEY not found in the Hermes .env',
     };
   }
   const key = parseEnvValue(result.stdout);
@@ -1262,7 +1324,8 @@ ipcMain.handle('hermes:session:delete', async (_event, payload) => {
 // stop serving it, and the profile goes.
 const DELETE_BOT_SCRIPT = `set -u
 
-ROOT="$HOME/.hermes"
+# HERMES_HOME wins (Windows: %LOCALAPPDATA%\\hermes); macOS keeps ~/.hermes.
+ROOT="\${HERMES_HOME:-$HOME/.hermes}"
 NAME="$1"
 P="$ROOT/profiles/$NAME"
 
@@ -1364,7 +1427,7 @@ ipcMain.handle('hermes:attachment:upload', async (_event, payload) => {
         stderrOf(result) ||
         result.error ||
         `Could not copy ${name} to ${
-          connection.mode === 'local' ? 'this Mac' : connection.sshHost
+          connection.mode === 'local' ? (IS_WIN ? 'this computer' : 'this Mac') : connection.sshHost
         }`,
     };
   }
@@ -1602,7 +1665,8 @@ const LIST_PROFILES_PY = `
 import json, socket
 from pathlib import Path
 
-home = Path.home() / ".hermes"
+import os
+home = Path(os.environ.get("HERMES_HOME") or (Path.home() / ".hermes"))
 path = home / "gateway.sock"
 pointer = home / "gateway.sock.path"
 if not path.exists() and pointer.is_file():
@@ -2110,7 +2174,8 @@ print(json.dumps({"title": now_title, "color": now_color}, separators=(",", ":")
 // through another profile's env).
 const CREATE_BOT_SCRIPT = `set -u
 
-ROOT="$HOME/.hermes"
+# HERMES_HOME wins (Windows: %LOCALAPPDATA%\\hermes); macOS keeps ~/.hermes.
+ROOT="\${HERMES_HOME:-$HOME/.hermes}"
 NAME="$1"
 TITLE="$2"
 DESC="$3"

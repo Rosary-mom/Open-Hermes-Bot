@@ -15,7 +15,9 @@
     "preview": "vite preview",
     "dist": "npm run build && electron-builder --mac --publish never",
     "dist:dir": "npm run build && electron-builder --mac --dir --publish never",
-    "dist:publish": "npm run build && electron-builder --mac --publish always"
+    "dist:publish": "npm run build && electron-builder --mac --publish always",
+    "dist:win": "npm run build && electron-builder --win --publish never",
+    "dist:win:dir": "npm run build && electron-builder --win --dir --publish never"
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
@@ -100,6 +102,31 @@
         "owner": "AZERDSQ131",
         "repo": "Open-Hermes-Bot"
       }
-    ]
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Hermes-Bot-${version}-${arch}-${os}.${ext}",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "portable": {
+      "artifactName": "Hermes-Bot-${version}-portable.${ext}"
+    }
   }
 }
