@@ -164,6 +164,8 @@ Local mode ("This computer") works on Windows when Hermes runs natively there:
 - The API key is read from `API_SERVER_KEY` in that home's `.env` and stored encrypted with Electron safeStorage (DPAPI) in the app's data folder instead of the macOS Keychain.
 - Run from source with `npm ci && npm start`; build an installer and a portable exe with `npm run dist:win` (output in `release/`).
 
+Named bots need Hermes' multiplexing gateway: set `gateway.multiplex_profiles: true` in the Hermes `config.yaml` (e.g. `hermes config set gateway.multiplex_profiles true`) and restart the gateway, so it serves `/p/<bot>/` on the shared port. Without it Hermes answers "Unknown or unconfigured profile". On Windows there is no `gateway.sock`, so the bot list comes from the `profiles` folder.
+
 Voice dictation in local mode still expects the macOS Hermes layout and may not work on Windows yet.
 
 ## Structure
